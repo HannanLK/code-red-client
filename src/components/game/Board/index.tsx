@@ -99,6 +99,8 @@ export function Board() {
   const dispatch = useAppDispatch();
   const board = useAppSelector((s) => s.game.game.board);
   const ui = useAppSelector((s) => s.game.boardUI);
+  const currentTurnPlayerId = useAppSelector((s) => s.game.game.currentTurnPlayerId);
+  const authUser = useAppSelector((s) => s.auth.user);
   const size = useTileSize();
   // init keyboard handler
   useKeyboardInput();
@@ -211,11 +213,19 @@ export function Board() {
                   const [{ isOver }, dropRef] = useDrop(() => ({
                     accept: DND_ITEM,
                     drop: (item: any) => {
-                      const auth = (useAppSelector as any)(s => s.auth.user); // not available here
-                      return undefined;
+                      // Turn validation for multiplayer
+                      if (authUser && currentTurnPlayerId && authUser.id !== currentTurnPlayerId) {
+                        dispatch(setWarnings([{ type: 'turn', message: 'Invalid Turn: Not your turn', severity: 'warning', position: { row: r, col: c } }]));
+                        return;
+                      }
+                      // Select square to recompute valid path, then place ghost tile
+                      dispatch(selectSquare({ row: r, col: c }));
+                      const letter = item.tile?.isBlank ? 'A' : (item.tile?.letter || 'A');
+                      const isBlank = !!item.tile?.isBlank;
+                      dispatch(placeGhostTile({ position: { row: r, col: c }, letter, isBlank }));
                     },
                     collect: (monitor) => ({ isOver: monitor.isOver({ shallow: true }) }),
-                  }), []);
+                  }), [dispatch, r, c, authUser?.id, currentTurnPlayerId, ui.direction]);
                   return (
                     <div ref={dropRef as unknown as React.Ref<HTMLDivElement>} key={`${r}-${c}`}>
                       <Square
