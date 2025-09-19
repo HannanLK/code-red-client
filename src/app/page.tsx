@@ -1,3 +1,4 @@
+"use client";
 import { motion } from "framer-motion";
 import Header from "@/components/common/Header";
 import Board from "@/components/game/Board";

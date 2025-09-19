@@ -34,12 +34,14 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Erro
   }
 }
 
-export function withErrorBoundary<P>(Component: React.ComponentType<P>) {
-  return function Wrapped(props: P) {
+export function withErrorBoundary<P extends object>(Component: React.ComponentType<P>): React.FC<P> {
+  const Wrapped: React.FC<P> = (props: P) => {
     return (
       <ErrorBoundary>
         <Component {...props} />
       </ErrorBoundary>
     );
   };
+  Wrapped.displayName = `WithErrorBoundary(${((Component as unknown) as { displayName?: string; name?: string }).displayName ?? Component.name ?? 'Component'})`;
+  return Wrapped;
 }

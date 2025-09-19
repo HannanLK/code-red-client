@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { BoardCell, BoardGrid, GameState as GameStateType, Move, PlayerState } from '@/types/game';
+import type { BoardCell, BoardGrid, GameState as GameStateType, Move, PlayerState, Position, Direction } from '@/types/game';
 import { BOARD_SIZE } from '@/types/game';
+import { computeValidPath, withPremiums } from '@/utils/board';
 
 const createEmptyBoard = (): BoardGrid => {
   const grid: BoardGrid = [];
@@ -11,21 +12,43 @@ const createEmptyBoard = (): BoardGrid => {
     }
     grid.push(row);
   }
-  return grid;
+  return withPremiums(grid);
 };
+
+interface BoardUIState {
+  selectedSquare: Position | null;
+  direction: Direction;
+  validPlacements: Position[];
+  zoom: number; // 0.6 .. 2.0
+  ghostTiles: { position: Position; letter: string; isBlank?: boolean }[];
+  warnings: { type: string; message: string; severity: 'error' | 'warning'; position?: Position }[];
+  undoStack: { position: Position; letter: string; isBlank?: boolean }[];
+  redoStack: { position: Position; letter: string; isBlank?: boolean }[];
+}
 
 interface GameSliceState {
   game: GameStateType;
+  boardUI: BoardUIState;
 }
 
 const initialState: GameSliceState = {
   game: {
-    id: '',
+    id: 'local-dev-game',
     board: createEmptyBoard(),
     players: [],
     currentTurnPlayerId: null,
     bagCount: 100,
     status: 'waiting',
+  },
+  boardUI: {
+    selectedSquare: null,
+    direction: 'H',
+    validPlacements: [],
+    zoom: 1,
+    ghostTiles: [],
+    warnings: [],
+    undoStack: [],
+    redoStack: [],
   },
 };
 
@@ -45,12 +68,96 @@ const gameSlice = createSlice({
         state.game.board[row][col] = { tile, locked: true };
       });
       state.game.lastMove = move;
+      // clear temp
+      state.boardUI.ghostTiles = [];
+      state.boardUI.undoStack = [];
+      state.boardUI.redoStack = [];
     },
     resetBoard(state) {
       state.game.board = createEmptyBoard();
+      state.boardUI.selectedSquare = null;
+      state.boardUI.validPlacements = [];
+      state.boardUI.ghostTiles = [];
+      state.boardUI.undoStack = [];
+      state.boardUI.redoStack = [];
+      state.boardUI.warnings = [];
+    },
+    selectSquare(state, action: PayloadAction<Position>) {
+      const pos = action.payload;
+      const same = state.boardUI.selectedSquare && state.boardUI.selectedSquare.row === pos.row && state.boardUI.selectedSquare.col === pos.col;
+      if (same) {
+        // toggle direction
+        state.boardUI.direction = state.boardUI.direction === 'H' ? 'V' : 'H';
+      } else {
+        state.boardUI.selectedSquare = pos;
+      }
+      // recompute valid path from selected
+      const start = state.boardUI.selectedSquare ?? pos;
+      state.boardUI.validPlacements = computeValidPath(state.game.board, start, state.boardUI.direction);
+    },
+    toggleDirection(state) {
+      state.boardUI.direction = state.boardUI.direction === 'H' ? 'V' : 'H';
+      if (state.boardUI.selectedSquare) {
+        state.boardUI.validPlacements = computeValidPath(state.game.board, state.boardUI.selectedSquare, state.boardUI.direction);
+      }
+    },
+    setZoom(state, action: PayloadAction<number>) {
+      const z = Math.max(0.6, Math.min(2, action.payload));
+      state.boardUI.zoom = z;
+    },
+    clearSelection(state) {
+      state.boardUI.selectedSquare = null;
+      state.boardUI.validPlacements = [];
+      state.boardUI.ghostTiles = [];
+      state.boardUI.undoStack = [];
+      state.boardUI.redoStack = [];
+      state.boardUI.warnings = [];
+    },
+    placeGhostTile(state, action: PayloadAction<{ position: Position; letter: string; isBlank?: boolean }>) {
+      const { position, letter, isBlank } = action.payload;
+      // ensure position is in validPlacements
+      const ok = state.boardUI.validPlacements.some(p => p.row === position.row && p.col === position.col);
+      if (!ok) return;
+      state.boardUI.ghostTiles.push({ position, letter, isBlank });
+      state.boardUI.undoStack.push({ position, letter, isBlank });
+      state.boardUI.redoStack = [];
+      // advance selection
+      const dir = state.boardUI.direction;
+      const next = dir === 'H' ? { row: position.row, col: position.col + 1 } : { row: position.row + 1, col: position.col };
+      state.boardUI.selectedSquare = next;
+      state.boardUI.validPlacements = computeValidPath(state.game.board, next, dir);
+    },
+    removeLastGhostTile(state) {
+      const last = state.boardUI.undoStack.pop();
+      if (!last) return;
+      // remove from ghostTiles matching position
+      const idx = state.boardUI.ghostTiles.findIndex(g => g.position.row === last.position.row && g.position.col === last.position.col);
+      if (idx >= 0) state.boardUI.ghostTiles.splice(idx, 1);
+      // Set selection back to last position
+      state.boardUI.selectedSquare = last.position;
+      state.boardUI.validPlacements = computeValidPath(state.game.board, last.position, state.boardUI.direction);
+      state.boardUI.redoStack.push(last);
+    },
+    redoGhostTile(state) {
+      const redo = state.boardUI.redoStack.pop();
+      if (!redo) return;
+      state.boardUI.ghostTiles.push({ ...redo });
+      state.boardUI.undoStack.push(redo);
+      const dir = state.boardUI.direction;
+      const next = dir === 'H' ? { row: redo.position.row, col: redo.position.col + 1 } : { row: redo.position.row + 1, col: redo.position.col };
+      state.boardUI.selectedSquare = next;
+      state.boardUI.validPlacements = computeValidPath(state.game.board, next, dir);
+    },
+    clearGhostTiles(state) {
+      state.boardUI.ghostTiles = [];
+      state.boardUI.undoStack = [];
+      state.boardUI.redoStack = [];
+    },
+    setWarnings(state, action: PayloadAction<BoardUIState['warnings']>) {
+      state.boardUI.warnings = action.payload;
     },
   },
 });
 
-export const { setGameState, setPlayers, applyMove, resetBoard } = gameSlice.actions;
+export const { setGameState, setPlayers, applyMove, resetBoard, selectSquare, toggleDirection, setZoom, clearSelection, placeGhostTile, removeLastGhostTile, redoGhostTile, clearGhostTiles, setWarnings } = gameSlice.actions;
 export default gameSlice.reducer;

@@ -5,7 +5,7 @@ function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={twMerge(
-        'rounded-xl border bg-card text-card-foreground shadow-sm border-black/10 dark:border-white/10',
+        'rounded-xl border bg-background text-foreground shadow-sm border-black/10 dark:border-white/10',
         className
       )}
       {...props}
@@ -27,7 +27,7 @@ function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElem
 
 function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={twMerge('text-sm text-muted-foreground', className)} {...props} />
+    <p className={twMerge('text-sm text-foreground/70', className)} {...props} />
   );
 }
 

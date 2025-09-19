@@ -18,6 +18,17 @@ export interface BoardCell {
 
 export type BoardGrid = BoardCell[][]; // 15 x 15 logical
 
+export type Direction = 'H' | 'V';
+export interface Position { row: number; col: number }
+
+export interface BoardState {
+  grid: (Tile | null)[][];
+  selectedSquare: Position | null;
+  direction: Direction;
+  validPlacements: Position[];
+  lastMove: Move | null;
+}
+
 export interface PlayerState {
   id: string;
   name: string;
@@ -56,6 +67,30 @@ export interface GameState {
   bagCount: number;
   status: GameStatus;
   lastMove?: Move;
+}
+
+// Server-synchronized timer state
+export interface TimerState {
+  player1Time: number;
+  player2Time: number;
+  currentPlayer: 'player1' | 'player2';
+  isPaused: boolean;
+}
+
+export interface ValidationWarning {
+  type: 'INVALID_TURN' | 'INVALID_TILE' | 'OFF_BOARD' | 'NO_START' | 'NOT_CONNECTED';
+  message: string;
+  severity: 'error' | 'warning';
+  position?: Position;
+}
+
+export interface InputHandler {
+  onLetterPress: (letter: string, isBlank: boolean) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  onExchange: () => void;
+  validatePlacement: (position: Position, letter: string) => boolean;
+  getNextPosition: (current: Position, direction: Direction) => Position;
 }
 
 export interface LobbyRoom {

@@ -44,7 +44,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
   return (
     <Comp
       className={twMerge(buttonVariants({ variant, size }), className)}
-      ref={ref as any}
+      ref={ref}
       {...props}
     />
   );

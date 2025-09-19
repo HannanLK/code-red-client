@@ -1,4 +1,4 @@
-import type { GameState, LobbyRoom, Move, MoveValidationResult, PlayerState } from './game';
+import type { GameState, LobbyRoom, Move, MoveValidationResult, PlayerState, TimerState } from './game';
 
 export type ClientToServerEvents = {
   'auth:login': (token: string) => void;
@@ -10,6 +10,12 @@ export type ClientToServerEvents = {
   'game:pass': () => void;
   'game:exchange': (letters: string[]) => void;
   'ping': () => void;
+  // Spec-required aliases
+  'join-game': (gameId: string) => void;
+  'make-move': (move: Move) => void;
+  'exchange-tiles': (tiles: string[]) => void;
+  'pass-turn': () => void;
+  'send-message': (message: string) => void;
 };
 
 export type ServerToClientEvents = {
@@ -24,6 +30,16 @@ export type ServerToClientEvents = {
   'game:playerLeft': (playerId: string) => void;
   'disconnectReason': (reason: string) => void;
   'pong': () => void;
+  // Timer
+  'timer-sync': (times: TimerState) => void;
+  'timer-expired': (player: string) => void;
+  // Spec-required aliases
+  'move-made': (move: Move) => void;
+  'turn-changed': (playerId: string) => void;
+  'tiles-received': (tiles: import('./game').Tile[]) => void;
+  'game-ended': (result: unknown) => void;
+  'player-disconnected': (playerId: string) => void;
+  'player-reconnected': (playerId: string) => void;
 };
 
 export type WsEvent = keyof (ClientToServerEvents & ServerToClientEvents);
