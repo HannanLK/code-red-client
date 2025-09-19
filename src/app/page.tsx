@@ -8,6 +8,7 @@ import Timer from "@/components/game/Timer";
 import Lobby from "@/components/lobby";
 import AuthPanel from "@/components/auth";
 import LoginGate from "@/components/auth/LoginGate";
+import DictionaryPanel from "@/components/game/DictionaryPanel";
 
 export default function Home() {
   return (
@@ -27,6 +28,7 @@ export default function Home() {
         <div className="lg:col-span-1 space-y-4">
           <Timer seconds={120} />
           <ScoreBoard />
+          <DictionaryPanel />
           <Lobby />
           <AuthPanel />
         </div>

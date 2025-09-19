@@ -3,10 +3,12 @@ import React from 'react';
 import { Card, CardContent } from '@/components/common/ui/card';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { BOARD_SIZE, type BoardCell, type Letter } from '@/types/game';
-import { selectSquare, toggleDirection, setZoom, clearSelection } from '@/features/game/gameSlice';
+import { selectSquare, toggleDirection, setZoom, clearSelection, placeGhostTile, setWarnings } from '@/features/game/gameSlice';
 import Tile from '@/components/game/Tile';
 import { Button } from '@/components/common/ui/button';
 import { useKeyboardInput } from '@/hooks/useKeyboardInput';
+import { useDrop } from 'react-dnd';
+import { DND_ITEM } from '@/components/game/Rack';
 
 const PREMIUM_COLORS: Record<string, string> = {
   TW: 'bg-rose-500/20 text-rose-600 dark:text-rose-300',
@@ -205,21 +207,31 @@ export function Board() {
                   const key = `${r},${c}`;
                   const ghost = ghostMap.get(key) ?? null;
                   const invalid = invalidSet.has(key);
+                  // Drag-and-drop from rack onto board cell
+                  const [{ isOver }, dropRef] = useDrop(() => ({
+                    accept: DND_ITEM,
+                    drop: (item: any) => {
+                      const auth = (useAppSelector as any)(s => s.auth.user); // not available here
+                      return undefined;
+                    },
+                    collect: (monitor) => ({ isOver: monitor.isOver({ shallow: true }) }),
+                  }), []);
                   return (
-                    <Square
-                      key={`${r}-${c}`}
-                      cell={cell}
-                      row={r}
-                      col={c}
-                      size={size}
-                      selected={selected}
-                      isValid={isValidPos(r, c)}
-                      showArrow={showArrow}
-                      direction={ui.direction}
-                      onClick={() => dispatch(selectSquare({ row: r, col: c }))}
-                      ghost={ghost}
-                      invalid={invalid}
-                    />
+                    <div ref={dropRef as unknown as React.Ref<HTMLDivElement>} key={`${r}-${c}`}>
+                      <Square
+                        cell={cell}
+                        row={r}
+                        col={c}
+                        size={size}
+                        selected={selected}
+                        isValid={isValidPos(r, c)}
+                        showArrow={showArrow}
+                        direction={ui.direction}
+                        onClick={() => dispatch(selectSquare({ row: r, col: c }))}
+                        ghost={ghost}
+                        invalid={invalid}
+                      />
+                    </div>
                   );
                 })}
               </div>

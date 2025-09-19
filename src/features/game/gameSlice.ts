@@ -31,14 +31,35 @@ interface GameSliceState {
   boardUI: BoardUIState;
 }
 
+// Local demo rack generator so the rack isn't empty before joining a game
+const generateRandomRack = (count = 7) => {
+  const letters = 'EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIINNNNNNRRRRRRTTTTTTOOOOOOLLLSSSUUUDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ??';
+  const pool = letters.split('');
+  const pick = () => {
+    const i = Math.floor(Math.random() * pool.length);
+    return pool.splice(i, 1)[0];
+  };
+  const points: Record<string, number> = { E:1,A:1,I:1,O:1,N:1,R:1,T:1,L:1,S:1,U:1,D:2,G:2,B:3,C:3,M:3,P:3,F:4,H:4,V:4,W:4,Y:4,K:5,J:8,X:8,Q:10,Z:10,'?':0 };
+  const tiles: GameStateType['players'][number]['rack'] = [] as any;
+  for (let i = 0; i < count; i++) {
+    const ch = pick();
+    const isBlank = ch === '?';
+    tiles.push({ letter: isBlank ? null : (ch as any), points: points[ch], isBlank });
+  }
+  return tiles;
+};
+
 const initialState: GameSliceState = {
   game: {
     id: 'local-dev-game',
     board: createEmptyBoard(),
-    players: [],
-    currentTurnPlayerId: null,
+    players: [
+      { id: 'p1', name: 'Player 1', score: 0, rack: generateRandomRack(), isConnected: true },
+      { id: 'p2', name: 'Player 2', score: 0, rack: generateRandomRack(), isConnected: true },
+    ],
+    currentTurnPlayerId: 'p1',
     bagCount: 100,
-    status: 'waiting',
+    status: 'active',
   },
   boardUI: {
     selectedSquare: null,
@@ -92,13 +113,41 @@ const gameSlice = createSlice({
         }
         return withPremiums(grid);
       };
+      // Merge players: preserve existing racks if server doesn't send them
+      const prevPlayers = state.game.players || [];
+      const incomingPlayers = Array.isArray(incoming.players) ? incoming.players : [];
+      const mergedPlayers: PlayerState[] = incomingPlayers.length > 0
+        ? incomingPlayers.map((p) => {
+            const prev = prevPlayers.find(pp => pp.id === p.id);
+            const rack = Array.isArray((p as any).rack) && (p as any).rack.length > 0
+              ? (p as any).rack
+              : (prev?.rack && prev.rack.length > 0 ? prev.rack : generateRandomRack());
+            return { ...p, rack } as PlayerState;
+          })
+        : prevPlayers;
       state.game = {
         ...incoming,
+        players: mergedPlayers,
+        currentTurnPlayerId: incoming.currentTurnPlayerId ?? state.game.currentTurnPlayerId,
         board: normalizeBoard(incoming.board as unknown),
       } as GameStateType;
     },
     setPlayers(state, action: PayloadAction<PlayerState[]>) {
       state.game.players = action.payload;
+    },
+    shuffleRack(state, action: PayloadAction<string | undefined>) {
+      const desiredId = action.payload ?? state.game.currentTurnPlayerId ?? (state.game.players[0]?.id ?? null);
+      if (!desiredId) return;
+      const player = state.game.players.find(p => p.id === desiredId);
+      if (!player || !Array.isArray(player.rack)) return;
+      const arr = [...player.rack];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+      }
+      player.rack = arr;
     },
     applyMove(state, action: PayloadAction<Move>) {
       const move = action.payload;
@@ -197,5 +246,5 @@ const gameSlice = createSlice({
   },
 });
 
-export const { setGameState, setPlayers, applyMove, resetBoard, selectSquare, toggleDirection, setZoom, clearSelection, placeGhostTile, removeLastGhostTile, redoGhostTile, clearGhostTiles, setWarnings } = gameSlice.actions;
+export const { setGameState, setPlayers, shuffleRack, applyMove, resetBoard, selectSquare, toggleDirection, setZoom, clearSelection, placeGhostTile, removeLastGhostTile, redoGhostTile, clearGhostTiles, setWarnings } = gameSlice.actions;
 export default gameSlice.reducer;

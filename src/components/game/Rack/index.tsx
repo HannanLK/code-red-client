@@ -1,15 +1,16 @@
 "use client";
 import React from 'react';
-import { useAppSelector } from '@/store';
+import { useAppSelector, useAppDispatch } from '@/store';
 import Tile from '@/components/game/Tile';
 import { Card, CardContent, CardFooter } from '@/components/common/ui/card';
 import { Button } from '@/components/common/ui/button';
 import { useDrag, useDrop } from 'react-dnd';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Tile as TileType } from '@/types/game';
+import { shuffleRack } from '@/features/game/gameSlice';
 
 // DnD item type
-const DND_ITEM = 'RACK_TILE';
+export const DND_ITEM = 'RACK_TILE';
 
 export interface RackProps {
   tiles: TileType[];
@@ -22,15 +23,16 @@ export interface RackProps {
 interface DragItem {
   type: typeof DND_ITEM;
   index: number;
+  tile: TileType;
 }
 
-function useRackSources(index: number, canDrag: boolean) {
+function useRackSources(index: number, canDrag: boolean, tile: TileType) {
   const [{ isDragging }, dragRef] = useDrag(() => ({
     type: DND_ITEM,
-    item: { type: DND_ITEM, index } as DragItem,
+    item: { type: DND_ITEM, index, tile } as DragItem,
     canDrag,
     collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }), [index, canDrag]);
+  }), [index, canDrag, tile]);
   return { dragRef, isDragging } as const;
 }
 
@@ -78,7 +80,7 @@ function RackTile({
   onClick: () => void;
   canDrag?: boolean;
 }) {
-  const { dragRef, isDragging } = useRackSources(index, canDrag);
+  const { dragRef, isDragging } = useRackSources(index, canDrag, tile);
 
   return (
     <motion.button
@@ -101,15 +103,27 @@ function RackTile({
 }
 
 export function Rack(props?: Partial<RackProps>) {
-  // Fallback to store if props not provided
-  const storePlayer = useAppSelector((s) => s.game.game.players[0]);
-  const tiles = (props?.tiles ?? storePlayer?.rack ?? []).slice(0, 7);
+  const dispatch = useAppDispatch();
+  // Fallback to store if props not provided, with multiplayer awareness
+  const authUser = useAppSelector((s) => s.auth.user);
+  const players = useAppSelector((s) => s.game.game.players);
+  const currentTurnPlayerId = useAppSelector((s) => s.game.game.currentTurnPlayerId);
+  const storePlayer = React.useMemo(() => {
+    if (props?.tiles) return null; // controlled mode, ignore store
+    const byAuth = players.find(p => p.id === authUser?.id) || null;
+    if (byAuth) return byAuth;
+    const byTurn = players.find(p => p.id === currentTurnPlayerId) || null;
+    if (byTurn) return byTurn;
+    return players[0] || null;
+  }, [players, authUser?.id, currentTurnPlayerId, props?.tiles]);
+  const sourceTiles = props?.tiles ?? storePlayer?.rack ?? [];
+  const tiles = React.useMemo(() => sourceTiles.slice(0, 7), [sourceTiles]);
   const [localTiles, setLocalTiles] = React.useState<TileType[]>(tiles);
   const controlled = Boolean(props && props.tiles);
 
   React.useEffect(() => {
     if (!controlled) setLocalTiles(tiles);
-  }, [tiles, controlled]);
+  }, [sourceTiles, controlled]);
 
   const selectedIndex = props?.selectedTileIndex ?? null;
 
@@ -129,6 +143,12 @@ export function Rack(props?: Partial<RackProps>) {
   };
 
   const onShuffle = () => {
+    // If using store-backed rack, dispatch a shuffle so it persists and works in multiplayer too
+    if (!controlled && storePlayer) {
+      dispatch(shuffleRack(storePlayer.id));
+      return;
+    }
+    // Fallback local shuffle (controlled or purely local usage)
     const arr = [...(controlled ? (props!.tiles as TileType[]) : localTiles)];
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
