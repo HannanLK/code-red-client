@@ -39,7 +39,7 @@ function useRackTarget(onHoverIndex: (hoverIndex: number, draggedIndex: number) 
     () => ({
       accept: DND_ITEM,
       drop: (item: DragItem) => onHoverIndex(toIndex, item.index),
-      hover: (item: DragItem) => {
+      hover: () => {
         // Optional live feedback could be added here
       },
       collect: (monitor) => ({

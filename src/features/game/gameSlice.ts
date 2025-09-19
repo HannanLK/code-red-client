@@ -57,7 +57,45 @@ const gameSlice = createSlice({
   initialState,
   reducers: {
     setGameState(state, action: PayloadAction<GameStateType>) {
-      state.game = action.payload;
+      const incoming = action.payload;
+      // Normalize incoming board from server (may be a 15x15 matrix of nulls)
+      const normalizeBoard = (raw: unknown): BoardGrid => {
+        const grid: BoardGrid = [];
+        if (Array.isArray(raw)) {
+          const rows = Math.max(BOARD_SIZE, (raw as unknown[]).length || BOARD_SIZE);
+          for (let r = 0; r < rows && r < BOARD_SIZE; r++) {
+            const rawRow = (raw as unknown[])[r];
+            const row: BoardCell[] = [];
+            if (Array.isArray(rawRow)) {
+              for (let c = 0; c < BOARD_SIZE; c++) {
+                const cell = (rawRow as unknown[])[c] as any;
+                if (cell && typeof cell === 'object' && 'tile' in cell) {
+                  // Ensure locked boolean shape
+                  row.push({ tile: (cell as any).tile ?? null, locked: !!(cell as any).locked, premium: (cell as any).premium });
+                } else {
+                  row.push({ tile: null });
+                }
+              }
+            } else {
+              for (let c = 0; c < BOARD_SIZE; c++) row.push({ tile: null });
+            }
+            grid.push(row);
+          }
+        }
+        // If grid is empty, create default
+        if (grid.length === 0) {
+          for (let r = 0; r < BOARD_SIZE; r++) {
+            const row: BoardCell[] = [];
+            for (let c = 0; c < BOARD_SIZE; c++) row.push({ tile: null });
+            grid.push(row);
+          }
+        }
+        return withPremiums(grid);
+      };
+      state.game = {
+        ...incoming,
+        board: normalizeBoard(incoming.board as unknown),
+      } as GameStateType;
     },
     setPlayers(state, action: PayloadAction<PlayerState[]>) {
       state.game.players = action.payload;

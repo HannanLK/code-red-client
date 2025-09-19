@@ -9,9 +9,10 @@ export function AuthPanel() {
   const [name, setName] = useState('');
 
   const onLogin = () => {
-    const fakeToken = 'demo-token';
-    saveToken(fakeToken);
-    setAuthUser({ id: 'me', name: name || 'Player' });
+    const username = (name || 'Player').trim();
+    // Use the username as the token so the Socket.IO auth can pick it up and store it server-side
+    saveToken(username);
+    setAuthUser({ id: 'me', name: username });
   };
 
   const onLogout = () => {

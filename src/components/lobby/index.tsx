@@ -1,11 +1,35 @@
 "use client";
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLobby } from '@/hooks/useLobby';
 import { Button } from '@/components/common/ui/button';
 import { Card, CardContent } from '@/components/common/ui/card';
+import { useSocketContext } from '@/services/socket-context';
+import { useSocket } from '@/hooks/useSocket';
+import type { LobbyRoom } from '@/types/game';
 
 export function Lobby() {
-  const { lobby, doJoin } = useLobby();
+  const { lobby, updateRooms, doJoin } = useLobby();
+  const { socket } = useSocketContext();
+
+  // Request lobby rooms on mount
+  useEffect(() => {
+    if (!socket) return;
+    socket.emit('lobby:list');
+  }, [socket]);
+
+  // Listen for lobby list updates
+  useSocket('lobby:list', (rooms: LobbyRoom[]) => {
+    updateRooms(rooms);
+  });
+
+  const joinRoom = (roomId: string) => {
+    if (!socket) return;
+    socket.emit('lobby:join', roomId);
+    // Also emit join-game to bind game state and timer events
+    socket.emit('join-game', roomId);
+    doJoin(roomId);
+  };
+
   return (
     <Card>
       <CardContent className="p-4 space-y-2">
@@ -14,7 +38,7 @@ export function Lobby() {
           {lobby.rooms.map((room) => (
             <li key={room.id} className="flex items-center justify-between">
               <span>{room.name} · {room.players}/{room.maxPlayers} · {room.status}</span>
-              <Button onClick={() => doJoin(room.id)} disabled={room.status !== 'open'}>
+              <Button onClick={() => joinRoom(room.id)} disabled={room.status !== 'open'}>
                 Join
               </Button>
             </li>

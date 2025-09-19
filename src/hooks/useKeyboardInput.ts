@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { placeGhostTile, removeLastGhostTile, redoGhostTile, selectSquare, clearGhostTiles, setWarnings } from '@/features/game/gameSlice';
+import { placeGhostTile, removeLastGhostTile, redoGhostTile, clearGhostTiles, setWarnings } from '@/features/game/gameSlice';
 import type { Direction, Position, ValidationWarning } from '@/types/game';
 
 // Debounce helper
@@ -57,6 +57,15 @@ export function useKeyboardInput() {
   const debouncedPlaceLetter = useMemo(() => debounce(placeLetter, 8), [placeLetter]);
 
   const onKeyDown = useCallback((e: KeyboardEvent) => {
+    // Ignore when typing in inputs/textareas/contenteditable
+    const target = e.target as HTMLElement | null;
+    if (target) {
+      const tag = target.tagName?.toLowerCase();
+      const isEditable = (target as HTMLElement).isContentEditable;
+      if (tag === 'input' || tag === 'textarea' || isEditable) {
+        return; // don't hijack typing, allow Backspace to work in fields
+      }
+    }
     // Basic controls
     if (e.key === 'Backspace') {
       e.preventDefault();

@@ -7,10 +7,12 @@ import ScoreBoard from "@/components/game/ScoreBoard";
 import Timer from "@/components/game/Timer";
 import Lobby from "@/components/lobby";
 import AuthPanel from "@/components/auth";
+import LoginGate from "@/components/auth/LoginGate";
 
 export default function Home() {
   return (
     <div className="min-h-screen p-6 sm:p-10">
+      <LoginGate />
       <Header />
       <motion.div
         initial={{ opacity: 0, y: 10 }}
