@@ -95,11 +95,34 @@ const Square = React.memo(function Square({
   );
 });
 
+const CellDrop = React.memo(function CellDrop({ r, c, dispatch, authUserId, currentTurnPlayerId, isParticipant, square }: { r: number; c: number; dispatch: any; authUserId?: string | null; currentTurnPlayerId?: string | null; isParticipant?: boolean; square: { cell: BoardCell; row: number; col: number; size: number; selected: boolean; isValid: boolean; showArrow: boolean; direction: 'H' | 'V'; onClick: () => void; ghost?: { letter: string; isBlank?: boolean } | null; invalid?: boolean; }; }) {
+  const [, dropRef] = useDrop(() => ({
+    accept: DND_ITEM,
+    drop: (item: any) => {
+      // Enforce turn only if the authenticated user is a participant in this game
+      if (isParticipant && authUserId && currentTurnPlayerId && authUserId !== currentTurnPlayerId) {
+        dispatch(setWarnings([{ type: 'turn', message: 'Invalid Turn: Not your turn', severity: 'warning', position: { row: r, col: c } }]));
+        return;
+      }
+      dispatch(selectSquare({ row: r, col: c }));
+      const letter = item.tile?.isBlank ? 'A' : (item.tile?.letter || 'A');
+      const isBlank = !!item.tile?.isBlank;
+      dispatch(placeGhostTile({ position: { row: r, col: c }, letter, isBlank }));
+    },
+  }), [dispatch, r, c, authUserId, currentTurnPlayerId, isParticipant]);
+  return (
+    <div ref={dropRef as unknown as React.Ref<HTMLDivElement>}>
+      <Square {...square} />
+    </div>
+  );
+});
+
 export function Board() {
   const dispatch = useAppDispatch();
   const board = useAppSelector((s) => s.game.game.board);
   const ui = useAppSelector((s) => s.game.boardUI);
   const currentTurnPlayerId = useAppSelector((s) => s.game.game.currentTurnPlayerId);
+  const players = useAppSelector((s) => s.game.game.players);
   const authUser = useAppSelector((s) => s.auth.user);
   const size = useTileSize();
   // init keyboard handler
@@ -209,39 +232,30 @@ export function Board() {
                   const key = `${r},${c}`;
                   const ghost = ghostMap.get(key) ?? null;
                   const invalid = invalidSet.has(key);
-                  // Drag-and-drop from rack onto board cell
-                  const [{ isOver }, dropRef] = useDrop(() => ({
-                    accept: DND_ITEM,
-                    drop: (item: any) => {
-                      // Turn validation for multiplayer
-                      if (authUser && currentTurnPlayerId && authUser.id !== currentTurnPlayerId) {
-                        dispatch(setWarnings([{ type: 'turn', message: 'Invalid Turn: Not your turn', severity: 'warning', position: { row: r, col: c } }]));
-                        return;
-                      }
-                      // Select square to recompute valid path, then place ghost tile
-                      dispatch(selectSquare({ row: r, col: c }));
-                      const letter = item.tile?.isBlank ? 'A' : (item.tile?.letter || 'A');
-                      const isBlank = !!item.tile?.isBlank;
-                      dispatch(placeGhostTile({ position: { row: r, col: c }, letter, isBlank }));
-                    },
-                    collect: (monitor) => ({ isOver: monitor.isOver({ shallow: true }) }),
-                  }), [dispatch, r, c, authUser?.id, currentTurnPlayerId, ui.direction]);
+                  const isParticipant = !!(authUser?.id && players.some(p => p.id === authUser!.id));
                   return (
-                    <div ref={dropRef as unknown as React.Ref<HTMLDivElement>} key={`${r}-${c}`}>
-                      <Square
-                        cell={cell}
-                        row={r}
-                        col={c}
-                        size={size}
-                        selected={selected}
-                        isValid={isValidPos(r, c)}
-                        showArrow={showArrow}
-                        direction={ui.direction}
-                        onClick={() => dispatch(selectSquare({ row: r, col: c }))}
-                        ghost={ghost}
-                        invalid={invalid}
-                      />
-                    </div>
+                    <CellDrop
+                      key={`${r}-${c}`}
+                      r={r}
+                      c={c}
+                      dispatch={dispatch}
+                      authUserId={authUser?.id ?? null}
+                      currentTurnPlayerId={currentTurnPlayerId ?? null}
+                      isParticipant={isParticipant}
+                      square={{
+                        cell,
+                        row: r,
+                        col: c,
+                        size,
+                        selected,
+                        isValid: isValidPos(r, c),
+                        showArrow,
+                        direction: ui.direction,
+                        onClick: () => dispatch(selectSquare({ row: r, col: c })),
+                        ghost,
+                        invalid,
+                      }}
+                    />
                   );
                 })}
               </div>
